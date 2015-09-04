@@ -1,0 +1,45 @@
+* cForth
+  Another basic forth.
+  In C because fuck you.
+  Planned to be merged in an OS.
+  So need to have basic function decoupled from the rest.
+  As much as possible.
+
+** Ideas
+** Parsing
+   None. Eval directly after ' '.
+   Is this doable?
+
+** Words (I think) I need
+*** if
+*** then
+*** else
+*** :
+*** ;
+*** emit
+*** >
+*** <
+*** and
+*** or
+*** xor
+*** =
+*** >=
+*** <=
+*** not
+*** !
+*** @
+*** .
+*** .s
+*** create
+*** allot
+*** ,
+*** '
+*** drop
+*** dup
+*** over
+*** push
+*** pop
+*** r>
+*** >r
+*** r@
+*** r!
