@@ -62,6 +62,15 @@ erealloc(void *ptr, int size)
 	return t;
 }
 
+void
+reset(void)
+{
+	printf("%s ?\n", buffer);
+	bzero(buffer, bp);
+	bzero(stack, sp);
+	bzero(rstack, rt);
+}
+
 int
 pop(void)
 {
@@ -201,7 +210,7 @@ basic(Word *wp)
 {
 	int t, y;
 	int pos = 0;
-	
+ start:	
 	switch(wp->id){
 	case 0:			/* NOOP */
 		break;
@@ -239,8 +248,7 @@ basic(Word *wp)
 		endcolon();
 		break;
 	default:
-		
-		basic(wp->code[pos]);
+		goto start;
 	}
 }
 
@@ -250,11 +258,17 @@ eval(void)
 	Word *w = NULL;
 
 	w = findword();
-	if(w == NULL)
-		return;
-	if(isnum())
+	if(isnum() == 1){
 		push(atoi(buffer));
+		return;
+	}
+	if(w == NULL)
+		goto fail;
+
 	basic(w);
+	return;
+ fail:
+	reset();
 }
 
 void
@@ -263,8 +277,8 @@ compile(void)
 	Word *w = NULL;
 
 	if(nameWait){
-		current->name = (char *)ecalloc(bp, sizeof(char *));
-		snprintf(current->name, bp-1, "%s", buffer);
+		current->name = (char *)ecalloc(bp+1, sizeof(char *));
+		sprintf(current->name, "%s", buffer);
 		nameWait = FALSE;
 		return;
 	}
