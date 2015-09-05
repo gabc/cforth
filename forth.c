@@ -1,13 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include <strings.h>
 #include <ctype.h>
 
 typedef struct Word {
 	int id;
 	char *name;
-	int type;
+	int flags;
 	int codeSize;
 	int *code;
 	struct Word *next;
@@ -19,8 +20,9 @@ enum {
 } bool;
 
 enum {
-	EVAL = 2,
-	COMPILE = 3,
+	EVAL = 0b0001,
+	COMPILE = 0b00010,
+	IMMEDIATE = 0b00100,
 };
 
 int stack[100], rstack[100];
@@ -139,6 +141,7 @@ initwords(void)
 
 	current = (Word *)emalloc(sizeof(*current));
 	current->next = dict;
+	current->flags = IMMEDIATE;
 	current->name = ";";
 	current->id = 9;
 
@@ -152,6 +155,8 @@ newword()
 	w = (Word *)emalloc(sizeof(*w));
 
 	/* w->name = name; */
+	w->id = 11;
+	w->flags = 0;
 	w->codeSize = 20;
 	w->code = (int *)ecalloc(20, sizeof(int*));
 	return w;
@@ -160,6 +165,7 @@ newword()
 void
 endcolon(void)
 {
+	mode = EVAL;
 	current->next = dict;
 	dict = current;
 }
@@ -190,12 +196,11 @@ findword()
 	return NULL;
 }
 
-/* So this function implements the base words.
-It is ugly. But whatever. */
 void
 basic(Word *wp)
 {
 	int t, y;
+	int pos = 0;
 	
 	switch(wp->id){
 	case 0:			/* NOOP */
@@ -233,6 +238,9 @@ basic(Word *wp)
 		mode = EVAL;
 		endcolon();
 		break;
+	default:
+		
+		basic(wp->code[pos]);
 	}
 }
 
@@ -242,10 +250,10 @@ eval(void)
 	Word *w = NULL;
 
 	w = findword();
-	if(w == NULL && isnum()){
-		push(atoi(buffer));
+	if(w == NULL)
 		return;
-	}
+	if(isnum())
+		push(atoi(buffer));
 	basic(w);
 }
 
@@ -255,13 +263,19 @@ compile(void)
 	Word *w = NULL;
 
 	if(nameWait){
-		current->name = buffer;
+		current->name = (char *)ecalloc(bp, sizeof(char *));
+		snprintf(current->name, bp-1, "%s", buffer);
 		nameWait = FALSE;
 		return;
 	}
 	w = findword();
 	if(w == NULL && isnum()){
 		/* Put Litteral number */
+		return;
+	}
+	if(w->flags&IMMEDIATE){
+		printf("imme ");
+		basic(w);
 		return;
 	}
 	if(cp > current->codeSize){
