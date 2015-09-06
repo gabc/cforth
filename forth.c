@@ -10,7 +10,7 @@ typedef struct Word {
 	char *name;
 	int flags;
 	int codeSize;
-	int *code;
+	struct Word **code;
 	struct Word *next;
 } Word;
 
@@ -25,7 +25,8 @@ enum {
 	IMMEDIATE = 0b00100,
 };
 
-int stack[100], rstack[100];
+int stack[100];
+Word *rstack[100];
 int sp, rt;
 Word *current, *dict;
 char buffer[100];
@@ -33,7 +34,13 @@ int bp;
 int mode = EVAL;
 int nameWait = FALSE;
 int cp = 0;
-int idcnt = 0;
+int idcnt = 11;
+
+int
+nextId(void)
+{
+	return ++idcnt;
+}
 
 void*
 emalloc(int size)
@@ -69,6 +76,10 @@ reset(void)
 	bzero(buffer, bp);
 	bzero(stack, sp);
 	bzero(rstack, rt);
+	bp = 0;
+	sp = 0;
+	rt = 0;
+	mode = EVAL;
 }
 
 int
@@ -87,6 +98,24 @@ push(int c)
 {
 	stack[sp] = c;
 	sp++;
+}
+
+Word *
+popr(void)
+{
+	Word *rp;
+	rp = rstack[rt];
+	rt--;
+	if(rt < 0)
+		rt = 0;
+	return rp;
+}
+
+void
+pushr(Word *w)
+{
+	rt++;
+	rstack[rt] = w;
 }
 
 /* This is dumb */
@@ -155,6 +184,14 @@ initwords(void)
 	current->id = 9;
 
 	dict = current;
+
+	current = (Word *)emalloc(sizeof(*current));
+	current->next = dict;
+	current->flags = 0;
+	current->name = "emit";
+	current->id = 10;
+
+	dict = current;
 }
 
 Word *
@@ -164,10 +201,10 @@ newword()
 	w = (Word *)emalloc(sizeof(*w));
 
 	/* w->name = name; */
-	w->id = 11;
+	w->id = ++idcnt;
 	w->flags = 0;
 	w->codeSize = 20;
-	w->code = (int *)ecalloc(20, sizeof(int*));
+	w->code = (Word **)ecalloc(20, sizeof(Word **));
 	return w;
 }
 
@@ -205,50 +242,86 @@ findword()
 	return NULL;
 }
 
+Word *
+findbyname(char *s)
+{
+	Word *wp;
+
+	wp = dict;
+
+	do{
+		if(strcmp(wp->name, s) == 0)
+			return wp;
+	}while((wp = wp->next) != NULL);
+	return NULL;
+}
+
 void
 basic(Word *wp)
 {
 	int t, y;
 	int pos = 0;
- start:	
+
+	if(!wp)
+		return;
 	switch(wp->id){
 	case 0:			/* NOOP */
+		popr();
 		break;
 	case 1:			/* + */
 		push(pop() + pop());
+		popr();
 		break;
 	case 2:			/* - */
 		t = pop();
 		push(pop() - t);
+		popr();
 		break;
 	case 3:			/* * */
 		push(pop() * pop());
+		popr();
 		break;
 	case 4:			/* / */
 		t = pop();
 		push(pop() / t);
+		popr();
 		break;
 	case 5:			/* . */
 		printf("%d ", pop());
+		popr();
 		break;
 	case 6:			/* .s */
 		for(t = 0; t < sp; t++)
 			printf("%d ", stack[t]);
+		popr();
 		break;
 	case 7:			/* bye */
+		printf("\n");
+		popr();
 		exit(0);
 		break;
 	case 8:			/* : */
 		mode = COMPILE;
 		nameWait = TRUE;
 		current = newword();
+		popr();
 		break;
 	case 9:			/* ; */
 		mode = EVAL;
 		endcolon();
+		popr();
+		break;
+	case 10:		/* emit */
+		printf("%c", pop());
+		popr();
+		break;
+	case 11:		/* litteral */
+		push(wp->codeSize);
+		popr();
 		break;
 	default:
-		goto start;
+		for(pos = 0; pos < wp->codeSize; pos++)
+			basic(wp->code[pos]);	
 	}
 }
 
@@ -271,6 +344,20 @@ eval(void)
 	reset();
 }
 
+Word *
+litteral(void)
+{
+	Word *lit;
+	int s;
+	s = atoi(buffer);
+	
+	lit = newword();
+	lit->id = 11;
+	lit->codeSize = s;
+	lit->code[0] = findbyname("litteral");
+	return lit;
+}
+
 void
 compile(void)
 {
@@ -283,12 +370,14 @@ compile(void)
 		return;
 	}
 	w = findword();
-	if(w == NULL && isnum()){
-		/* Put Litteral number */
-		return;
+	if(isnum())
+		w = litteral();
+	if(w == NULL){
+		reset();
 	}
+
 	if(w->flags&IMMEDIATE){
-		printf("imme ");
+		printf("ok\n");
 		basic(w);
 		return;
 	}
@@ -296,7 +385,7 @@ compile(void)
 		current->code = erealloc(current->code, current->codeSize*2);
 		current->codeSize *= 2;
 	}
-	current->code[cp] = w->id;
+	current->code[cp] = w;
 	cp++;
 }
 
@@ -313,8 +402,10 @@ main()
 	while((c = getc(stdin)) != EOF){
 		if(bp > 99)
 			err(1, NULL);
-		if(c == '\n')
+		if(c == '\n'){
+			printf("\n");
 			continue;
+		}
 		if(c == '\b' || c == 127) {
 			buffer[bp] = 0;
 			bp--;
