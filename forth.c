@@ -73,8 +73,8 @@ void
 reset(void)
 {
 	printf("%s ?\n", buffer);
-	bzero(buffer, bp);
-	bzero(stack, sp);
+	bzero(buffer, bp+1);
+	bzero(stack, sp+1);
 	bzero(rstack, rt);
 	bp = 0;
 	sp = 0;
@@ -192,6 +192,14 @@ initwords(void)
 	current->id = 10;
 
 	dict = current;
+
+        current = (Word *)emalloc(sizeof(*current));
+        current->next = dict;
+        current->flags = 0;
+        current->name = "litteral";
+        current->id = 11;
+
+        dict = current;
 }
 
 Word *
@@ -319,6 +327,8 @@ basic(Word *wp)
 		push(wp->codeSize);
 		popr();
 		break;
+	case 12:		/* if */
+		if(pop())
 	default:
 		for(pos = 0; pos < wp->codeSize; pos++)
 			basic(wp->code[pos]);	
@@ -374,6 +384,7 @@ compile(void)
 		w = litteral();
 	if(w == NULL){
 		reset();
+		return;
 	}
 
 	if(w->flags&IMMEDIATE){
@@ -418,7 +429,7 @@ main()
 				eval();
 			else
 				compile();
-			bzero(buffer, bp);
+			bzero(buffer, bp+1);
 			bp = 0;
 		} else {
 			printf("%c", c);
